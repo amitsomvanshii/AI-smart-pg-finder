@@ -10,7 +10,19 @@
 - **Digital Booking:** Seamless booking process with Aadhar verification and digital check-ins.
 - **Finance Management:** Automated rent tracking, payment confirmation, and expense splitting.
 - **Real-time Chat:** Direct messaging between tenants and owners.
-- **Maintenance Hub:** Ticketing system for maintenance issues (Plumbing, WiFi, etc.).
+- **Maintenance Hub:** Ticketing system for maintenance issues (Plumbing, Electrical, WiFi, etc.).
+
+## 📸 Screenshots
+
+> **Note:** Create a folder named `screenshots/` in the root directory and add your images there. Name them as follows to see them in this section: `homepage.png`, `dashboard.png`, `matching.png`, `chat.png`, `analytics.png`, and `receipt.png`.
+
+| **Homepage & Search** | **User Dashboard** | **ML Roommate Matching** |
+|:---:|:---:|:---:|
+| ![Home](screenshots/homepage.png) | ![Dashboard](screenshots/dashboard.png) | ![Matching](screenshots/matching.png) |
+
+| **Real-time Chat** | **Owner Analytics** | **Digital Receipts** |
+|:---:|:---:|:---:|
+| ![Chat](screenshots/chat.png) | ![Analytics](screenshots/analytics.png) | ![Receipt](screenshots/receipt.png) |
 
 ## 🛠️ Tech Stack
 
@@ -39,7 +51,7 @@
 
 1. **Clone the repository:**
    ```bash
-   git clone <your-repo-url>
+   git clone https://github.com/amitsomvanshii/smart-pg-finder.git
    ```
 
 2. **Setup Backend:**
