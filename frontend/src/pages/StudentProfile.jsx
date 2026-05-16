@@ -39,6 +39,8 @@ const StudentProfile = () => {
   const [lifestyle, setLifestyle] = useState(null);
   const [isLifestyleModalOpen, setIsLifestyleModalOpen] = useState(false);
   const [saveLoading, setSaveLoading] = useState(false);
+  const [pgNotices, setPgNotices] = useState({}); // { pgId: notices[] }
+  const [noticesLoading, setNoticesLoading] = useState(false);
 
   useEffect(() => {
     const fetchBookings = async () => {
@@ -49,6 +51,7 @@ const StudentProfile = () => {
         if (!res.ok) throw new Error('Could not fetch bookings');
         const data = await res.json();
         setBookings(data);
+        fetchNoticesForActiveStays(data);
       } catch (err) {
         setError(err.message);
       } finally {
@@ -64,6 +67,27 @@ const StudentProfile = () => {
       setLoading(false);
     }
   }, [user, token]);
+
+  const fetchNoticesForActiveStays = async (allBookings) => {
+    const active = allBookings.filter(b => b.status === 'ACTIVE');
+    if (active.length === 0) return;
+
+    setNoticesLoading(true);
+    try {
+      const noticeMap = {};
+      for (const b of active) {
+        const pgId = b.bed.floor.pg.id;
+        const res = await fetch(`http://localhost:5000/api/pgs/${pgId}/notices`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+          noticeMap[pgId] = await res.json();
+        }
+      }
+      setPgNotices(noticeMap);
+    } catch (err) { console.error(err); }
+    finally { setNoticesLoading(false); }
+  };
 
   const fetchHubData = async () => {
     setHubLoading(true);
@@ -312,6 +336,30 @@ const StudentProfile = () => {
              <span>{lifestyle ? 'AI Matching: Active' : 'Complete AI Quiz'}</span>
           </div>
       </div>
+
+      {/* ─── Smart Notice Board ─── */}
+      {Object.values(pgNotices).flat().length > 0 && (
+        <section className="student-notice-board fade-in">
+           <div className="section-header-row">
+              <h2><Bell size={22} color="var(--primary)" /> Smart Notice Board</h2>
+              <span className="notice-count">{Object.values(pgNotices).flat().length} New Announcements</span>
+           </div>
+           <div className="notices-grid">
+              {Object.keys(pgNotices).map(pgId => (
+                pgNotices[pgId].map(notice => (
+                  <div key={notice.id} className="student-notice-card glass">
+                    <div className="notice-card-header">
+                      <span className="pg-name-tag">{activeBookings.find(b => b.bed.floor.pg.id === pgId)?.bed.floor.pg.name}</span>
+                      <span className="notice-date">{new Date(notice.createdAt).toLocaleDateString()}</span>
+                    </div>
+                    <h3>{notice.title}</h3>
+                    <p>{notice.content}</p>
+                  </div>
+                ))
+              ))}
+           </div>
+        </section>
+      )}
 
       <div className="profile-content">
         <section className="booking-section">

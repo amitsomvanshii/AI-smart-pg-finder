@@ -4,7 +4,8 @@ import {
   createPg, getPgs, getMyPgs, getPgLayout, addFloor, addBed, 
   bookBed, uploadPgPhotos, getMyBookings, cancelBooking, 
   uploadBedPhotos, deletePg, deleteFloor, deleteBed,
-  updatePgDetails
+  updatePgDetails, createNotice, getNotices, deleteNotice,
+  autoLayoutPg
 } from '../controllers/pg';
 import { upload } from '../middlewares/upload';
 
@@ -29,5 +30,11 @@ router.post('/:pgId/photos', authenticate, requireRole('OWNER'), upload.array('p
 router.delete('/:id', authenticate, requireRole('OWNER'), deletePg);
 router.delete('/floor/:id', authenticate, requireRole('OWNER'), deleteFloor);
 router.delete('/bed/:id', authenticate, requireRole('OWNER'), deleteBed);
+
+// Notices
+router.get('/:pgId/notices', authenticate, getNotices);
+router.post('/notice', authenticate, requireRole('OWNER'), createNotice);
+router.post('/auto-layout', authenticate, requireRole('OWNER'), autoLayoutPg);
+router.delete('/notice/:id', authenticate, requireRole('OWNER'), deleteNotice);
 
 export default router;

@@ -570,3 +570,124 @@ export const deleteBed = async (req: AuthRequest, res: Response): Promise<void> 
     res.status(500).json({ message: 'Server Error', error });
   }
 };
+
+// 13. Owner: Create Notice
+export const createNotice = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { pgId, title, content } = req.body;
+    const ownerId = req.user?.id;
+
+    const pg = await prisma.pg.findUnique({ where: { id: pgId as string } });
+    if (!pg || pg.ownerId !== ownerId) {
+      res.status(403).json({ message: 'Forbidden' });
+      return;
+    }
+
+    const notice = await prisma.notice.create({
+      data: { pgId: pgId as string, title, content }
+    });
+
+    // Notify residents via Socket.io
+    if (req.io) {
+      req.io.to(`pg_${pgId}`).emit('new_notice', { pgId, notice });
+    }
+
+    res.status(201).json(notice);
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: String(error) });
+  }
+};
+
+// 14. Both: Get Notices for a PG
+export const getNotices = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const pgId = req.params.pgId as string;
+    const notices = await prisma.notice.findMany({
+      where: { pgId },
+      orderBy: { createdAt: 'desc' }
+    });
+    res.status(200).json(notices);
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: String(error) });
+  }
+};
+
+// 15. Owner: Delete Notice
+export const deleteNotice = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const id = req.params.id as string;
+    const ownerId = req.user?.id;
+
+    const notice = await prisma.notice.findUnique({
+      where: { id },
+      include: { pg: true }
+    }) as any; // Cast to any to bypass strict include check if generate is lagging
+
+    if (!notice || notice.pg.ownerId !== ownerId) {
+      res.status(403).json({ message: 'Forbidden' });
+      return;
+    }
+
+    await prisma.notice.delete({ where: { id } });
+    res.status(200).json({ message: 'Notice deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: String(error) });
+  }
+};
+
+// 16. Owner: AI Auto-Layout (Clone Floor 1)
+export const autoLayoutPg = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { pgId, totalFloors } = req.body;
+    const ownerId = req.user?.id;
+
+    const pg = await prisma.pg.findUnique({
+      where: { id: pgId },
+      include: { floors: { include: { beds: true }, orderBy: { floorNumber: 'asc' } } }
+    });
+
+    if (!pg || pg.ownerId !== ownerId) {
+      res.status(403).json({ message: 'Forbidden or PG not found' });
+      return;
+    }
+
+    if (pg.floors.length === 0) {
+      res.status(400).json({ message: 'You must add at least one floor (Floor 1) to use Auto-Layout' });
+      return;
+    }
+
+    const firstFloor = pg.floors[0];
+    const existingFloorNumbers = pg.floors.map(f => f.floorNumber);
+
+    const newFloorsCreated = [];
+
+    // Start from floor 2 up to totalFloors
+    for (let i = 2; i <= totalFloors; i++) {
+      if (existingFloorNumbers.includes(i)) continue;
+
+      // Create floor
+      const newFloor = await prisma.floor.create({
+        data: {
+          pgId,
+          floorNumber: i,
+          beds: {
+            create: firstFloor.beds.map(b => ({
+              identifier: b.identifier,
+              priceMultiplier: b.priceMultiplier,
+              status: b.status as any
+            }))
+          }
+        },
+        include: { beds: true }
+      });
+      newFloorsCreated.push(newFloor);
+    }
+
+    res.status(201).json({ 
+      message: `Successfully generated ${newFloorsCreated.length} floors based on Floor ${firstFloor.floorNumber} structure.`,
+      floors: newFloorsCreated 
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'AI Auto-Layout Error', error: String(error) });
+  }
+};

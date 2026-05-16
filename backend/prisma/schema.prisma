@@ -78,6 +78,7 @@ model Pg {
   floors        Floor[]
   reviews       Review[]
   conversations Conversation[]
+  notices       Notice[]
 }
 
 model Conversation {
@@ -157,7 +158,7 @@ model Booking {
 
 
   user                User           @relation(fields: [userId], references: [id])
-  bed                 Bed            @relation(fields: [bedId], references: [id])
+  bed                 Bed            @relation(fields: [bedId], references: [id], onDelete: Cascade)
   issues              Issue[]
   payments            Payment[]
 }
@@ -186,7 +187,7 @@ model Issue {
   status      String   @default("OPEN") // "OPEN", "CLOSED"
   createdAt   DateTime @default(now())
   
-  booking     Booking  @relation(fields: [bookingId], references: [id])
+  booking     Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 }
 
 model Review {
@@ -244,4 +245,14 @@ model ExpenseSplit {
 
   expense     Expense  @relation(fields: [expenseId], references: [id], onDelete: Cascade)
   user        User     @relation(fields: [userId], references: [id])
+}
+
+model Notice {
+  id        String   @id @default(uuid())
+  pgId      String
+  title     String
+  content   String
+  createdAt DateTime @default(now())
+
+  pg        Pg       @relation(fields: [pgId], references: [id], onDelete: Cascade)
 }

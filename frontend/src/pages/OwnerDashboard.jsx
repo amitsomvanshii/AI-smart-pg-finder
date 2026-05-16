@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { PlusCircle, ChevronDown, ChevronUp, BedDouble, Layers, Home, Camera, X, Upload, AlertTriangle, Trash2, IndianRupee, Users, CreditCard, HelpCircle, CheckCircle2, FileText, Download, User, TrendingUp } from 'lucide-react';
+import { PlusCircle, ChevronDown, ChevronUp, BedDouble, Layers, Home, Camera, X, Upload, AlertTriangle, Trash2, IndianRupee, Users, CreditCard, HelpCircle, CheckCircle2, FileText, Download, User, TrendingUp, Bell, Sparkles } from 'lucide-react';
 import PgDetailsEditor from '../components/PgDetailsEditor';
 import './OwnerDashboard.css';
 
@@ -64,6 +64,10 @@ const OwnerDashboard = () => {
   const [residentBookings, setResidentBookings] = useState([]);
   const [vacancyInsights, setVacancyInsights] = useState({}); // { pgId: insight }
   const [insightsLoading, setInsightsLoading] = useState(false);
+  const [pgNotices, setPgNotices] = useState({}); // { pgId: notices[] }
+  const [noticeForm, setNoticeForm] = useState({ title: '', content: '' });
+  const [noticeAddingFor, setNoticeAddingFor] = useState(null);
+  const [noticeLoading, setNoticeLoading] = useState(false);
 
 
   // Photo upload states
@@ -108,6 +112,74 @@ const OwnerDashboard = () => {
       console.warn('Vacancy insights failed', e);
     } finally {
       setInsightsLoading(false);
+    }
+  };
+
+  const fetchNotices = async (pgId) => {
+    setNoticeLoading(true);
+    try {
+      const res = await fetch(`http://localhost:5000/api/pgs/${pgId}/notices`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setPgNotices(prev => ({ ...prev, [pgId]: data }));
+      }
+    } catch (e) { console.error(e); }
+    finally { setNoticeLoading(false); }
+  };
+
+  const handleCreateNotice = async (e, pgId) => {
+    e.preventDefault();
+    try {
+      const res = await fetch('http://localhost:5000/api/pgs/notice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ pgId, ...noticeForm })
+      });
+      if (res.ok) {
+        setNoticeForm({ title: '', content: '' });
+        setNoticeAddingFor(null);
+        fetchNotices(pgId);
+      }
+    } catch (e) { console.error(e); }
+  };
+
+  const handleDeleteNotice = async (noticeId, pgId) => {
+    if (!window.confirm('Delete this notice?')) return;
+    try {
+      const res = await fetch(`http://localhost:5000/api/pgs/notice/${noticeId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) fetchNotices(pgId);
+    } catch (e) { console.error(e); }
+  };
+
+  const [autoLayoutLoading, setAutoLayoutLoading] = useState(false);
+
+  const handleAutoLayout = async (pgId) => {
+    const total = window.prompt('How many floors in total should this PG have? (e.g. if you have 4 floors, type 4)', '4');
+    if (!total || isNaN(Number(total))) return;
+
+    setAutoLayoutLoading(true);
+    try {
+      const res = await fetch('http://localhost:5000/api/pgs/auto-layout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ pgId, totalFloors: Number(total) })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert(data.message);
+        fetchMyPgs();
+      } else {
+        throw new Error(data.message);
+      }
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setAutoLayoutLoading(false);
     }
   };
 
@@ -540,10 +612,13 @@ const OwnerDashboard = () => {
               <div key={pg.id} className="pg-manage-card">
                 {/* PG Header */}
                 <div className="pg-manage-header" onClick={() => {
-                  const becomingExpanded = !isExpanded;
-                  setExpandedPg(becomingExpanded ? pg.id : null);
-                  if (becomingExpanded) fetchVacancyInsights(pg.id);
-                }}>
+                    const becomingExpanded = !isExpanded;
+                    setExpandedPg(becomingExpanded ? pg.id : null);
+                    if (becomingExpanded) {
+                      fetchVacancyInsights(pg.id);
+                      fetchNotices(pg.id);
+                    }
+                  }}>
                   <div className="pg-manage-info">
 
                     <div className="pg-title-status">
@@ -561,9 +636,20 @@ const OwnerDashboard = () => {
                     <span className="stat-badge">{pg.floors.length} floor{pg.floors.length !== 1 ? 's' : ''}</span>
                     <span className="stat-badge">{occupiedBeds}/{totalBeds} occupied</span>
                     <span className="stat-badge"><Camera size={14} /> {(pg.photos || []).length} photo{(pg.photos || []).length !== 1 ? 's' : ''}</span>
-                    <button className="delete-icon-btn" title="Delete PG" onClick={(e) => { e.stopPropagation(); handleDeletePg(pg.id); }}>
-                    <Trash2 size={16} />
-                  </button>
+                    <button 
+                      className={`delete-icon-btn ${occupiedBeds > 0 ? 'disabled' : ''}`} 
+                      title={occupiedBeds > 0 ? "Cannot delete PG while it has occupied beds" : "Delete PG"} 
+                      onClick={(e) => { 
+                        e.stopPropagation(); 
+                        if (occupiedBeds > 0) {
+                          alert("Cannot delete PG while it has occupied beds. All students must leave first.");
+                          return;
+                        }
+                        handleDeletePg(pg.id); 
+                      }}
+                    >
+                      <Trash2 size={16} />
+                    </button>
                     {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
                   </div>
                 </div>
@@ -619,13 +705,13 @@ const OwnerDashboard = () => {
                     {/* ── Photo Upload + Details Edit Section ── */}
 
                     <div className="section-action photo-action">
-                      <button className="btn-secondary small-btn" onClick={() => {
+                      <button type="button" className="btn-secondary small-btn" onClick={() => {
                         setPhotoUploadFor(isPhotoOpen ? null : pg.id);
                         setSelectedFiles([]); setPreviews([]); setPhotoError(null);
                       }}>
                         <Camera size={16} /> {isPhotoOpen ? 'Cancel Upload' : 'Add Photos'}
                       </button>
-                      <button className="btn-secondary small-btn" style={{marginLeft: 8}} onClick={() => setEditDetailsPg(pg)}>
+                      <button type="button" className="btn-secondary small-btn" style={{marginLeft: 8}} onClick={() => setEditDetailsPg(pg)}>
                         <FileText size={16} /> Edit Description & Rules
                       </button>
                     </div>
@@ -681,11 +767,72 @@ const OwnerDashboard = () => {
                       </div>
                     )}
 
+                    {/* ── Smart Notice Board ── */}
+                    <div className="notice-board-section">
+                      <div className="section-header">
+                         <h4><Bell size={18} /> PG Notice Board</h4>
+                         <button className="btn-secondary small-btn" onClick={() => setNoticeAddingFor(noticeAddingFor === pg.id ? null : pg.id)}>
+                           {noticeAddingFor === pg.id ? 'Cancel' : 'Post New Notice'}
+                         </button>
+                      </div>
+
+                      {noticeAddingFor === pg.id && (
+                        <form onSubmit={(e) => handleCreateNotice(e, pg.id)} className="notice-form-box fade-in">
+                          <input 
+                            placeholder="Notice Title (e.g. Water Supply Update)" 
+                            value={noticeForm.title} 
+                            onChange={e => setNoticeForm({...noticeForm, title: e.target.value})} 
+                            required 
+                          />
+                          <textarea 
+                            placeholder="Describe the notice in detail..." 
+                            value={noticeForm.content} 
+                            onChange={e => setNoticeForm({...noticeForm, content: e.target.value})} 
+                            required 
+                          />
+                          <button type="submit" className="btn-primary small-btn">Publish Notice</button>
+                        </form>
+                      )}
+
+                      <div className="notices-list">
+                        {!pgNotices[pg.id] || pgNotices[pg.id].length === 0 ? (
+                          <p className="text-muted small">No active notices for this PG.</p>
+                        ) : (
+                          pgNotices[pg.id].map(notice => (
+                            <div key={notice.id} className="notice-item">
+                              <div className="notice-item-header">
+                                <strong>{notice.title}</strong>
+                                <div className="notice-meta">
+                                  <span>{new Date(notice.createdAt).toLocaleDateString()}</span>
+                                  <button className="delete-mini-btn" onClick={() => handleDeleteNotice(notice.id, pg.id)}>
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
+                              </div>
+                              <p>{notice.content}</p>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+
                     {/* ── Add Floor ── */}
-                    <div className="section-action">
+                    <div className="section-action" style={{ display: 'flex', gap: 10 }}>
                       <button className="btn-secondary small-btn" onClick={() => setFloorAddingFor(floorAddingFor === pg.id ? null : pg.id)}>
                         <Layers size={16} /> {floorAddingFor === pg.id ? 'Cancel' : 'Add Floor'}
                       </button>
+
+                      {pg.floors.length > 0 && (
+                        <button 
+                          className="btn-secondary small-btn ai-btn" 
+                          onClick={() => handleAutoLayout(pg.id)}
+                          disabled={autoLayoutLoading}
+                          title="Auto-fill the rest of the floors based on Floor 1 structure"
+                        >
+                          <Sparkles size={16} color="#db2777" /> 
+                          {autoLayoutLoading ? 'Generating...' : 'AI Smart Layout'}
+                        </button>
+                      )}
                     </div>
 
                     {floorAddingFor === pg.id && (
@@ -710,9 +857,24 @@ const OwnerDashboard = () => {
                                 onClick={() => setBedAddingFor(bedAddingFor === floor.id ? null : floor.id)}>
                                 <BedDouble size={16} /> {bedAddingFor === floor.id ? 'Cancel' : 'Add Bed'}
                               </button>
-                              <button className="delete-icon-btn" title="Delete Floor" onClick={() => handleDeleteFloor(floor.id)}>
-                                <Trash2 size={16} />
-                              </button>
+                              {(() => {
+                                const occOnFloor = floor.beds.filter(b => b.status === 'OCCUPIED').length;
+                                return (
+                                  <button 
+                                    className={`delete-icon-btn ${occOnFloor > 0 ? 'disabled' : ''}`} 
+                                    title={occOnFloor > 0 ? "Cannot delete floor while it has occupied beds" : "Delete Floor"} 
+                                    onClick={() => {
+                                      if (occOnFloor > 0) {
+                                        alert("Cannot delete floor while it has occupied beds.");
+                                        return;
+                                      }
+                                      handleDeleteFloor(floor.id);
+                                    }}
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                );
+                              })()}
                             </div>
                           </div>
                           {bedAddingFor === floor.id && (
@@ -804,7 +966,7 @@ const OwnerDashboard = () => {
                                         </div>
                                       </div>
                                     ) : (
-                                      <button className="btn-secondary text-btn" onClick={() => { setBedPhotoAddingFor(bed.id); setSelectedFiles([]); }}>
+                                      <button type="button" className="btn-secondary text-btn" onClick={() => { setBedPhotoAddingFor(bed.id); setSelectedFiles([]); }}>
                                         <Camera size={12} /> Add Photos
                                       </button>
                                     )}
